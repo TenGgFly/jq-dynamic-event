@@ -1,0 +1,145 @@
+JQ动态生成节点绑定事件无效问题
+
+最近做项目的时候遇见了一个问题，通过jq将动态节点绑定到dom节点上，并且为动态节点绑定方法，此方法再次为动态节点添加动态节点;
+但在刷新之后，动态节点上的方法失效了：创建动态节点->动态节点绑定方法->添加动态节点->刷新后点击动态节点方法失效
+
+<!DOCTYPE html>
+<html>
+	<head></head>
+	<body>
+		<div id="liData">
+               
+		</div>
+	</body>
+</html>
+
+1、首先通过ajax获取到管理员管理多少个班级                                                         
+-------------------
+| 班级1            |
+-------------------
+| 班级2            |
+-------------------
+|                 |
+|                 |
+|                 |
+|                 |
+|                 |
+|                 |
+|                 |
+|                 |
+|                 |
+-------------------
+
+...ajax
+success: function (res) {
+for (i = 0; i < res.data.length; i++) {
+var collegeList = '<ul class="......">' +
+                 	'<li class="......">' +
+                    	'<a class="......" onclick="getPro(\''+res.data[i].ID+'\')">' + res.data[i].FullName + '</a>' +
+                        '<div class="......" id="' + res.data[i].ID + '">' +
+
+                        '</div>'
+                    '</li>' +
+                  '</ul>';
+	$("#liData").append(collegeList);
+}
+......
+
+2、点击对应班级添加班级学生
+-------------------
+| 班级1(active)   |
+ -----------------
+| 学生1           |
+| 学生2           |
+| 学生3           |
+| 学生4           |
+| 学生...         |
+-------------------
+| 班级2           |
+|                 |
+-------------------                                 
+
+Function getPro(id){
+...ajax
+success: function (ress) {
+		for (j = 0; j < ress.data.length; j++) {
+			var list = '<li class="...... ">' +
+					'<a class="......">' +
+						'<p class="......">姓名：' + ress.data[j].StudentName + '</p>' +
+						'<p class="......">学号：' + ress.data[j].StudentID + '</p>' +
+						'<p class="......">性别：' + ress.data[j].Sex + '</p>' +
+						'<p class="......">院系：' + ress.data[j].College + '</p>' +
+						'<p class="......">专业：' + ress.data[j].ProfessionalName + '</p>' +
+						'<p class="......">班级：' + ress.data[j].OrganName + '</p>' +
+					'</a>' +
+					'</li>';
+			$("#" + id+ "").append(list);
+		}
+	}
+}
+......
+
+3、刷新后会发现，点击班级加载不出学生来，于是采用同步加载的方式勉强实现
+...ajax            
+success: function (res) {
+for (i = 0; i < res.data.length; i++) {
+    var OrganID = res.data[i].ID;
+    var collegeList = '<ul class="......">' +
+                          '<li class="mui-table-view-cell mui-collapse">' +
+                              '<a class="......">' + res.data[i].FullName + '</a>' +
+                              '<div class="......" id="' + res.data[i].ID + '">' +
+
+                              '</div>'
+                          '</li>' +
+                        '</ul>';
+    $("#liData").append(collegeList);
+    $.ajax({
+       ......
+      async: false,//同步，但并非好办法
+      success: function (ress) {
+        for (j = 0; j < ress.data.length; j++) {
+            var list = '<li class="...... ">' +
+                          '<a class="......" onclick="showInfo(' + ress.data[j].StudentID + ')">' +
+                                '<p class="......">姓名：' + ress.data[j].StudentName + '</p>' +
+                                '<p class="......">学号：' + ress.data[j].StudentID + '</p>' +
+                                '<p class="......">性别：' + ress.data[j].Sex + '</p>' +
+                                '<p class="......">院系：' + ress.data[j].College + '</p>' +
+                                '<p class="......">专业：' + ress.data[j].ProfessionalName + '</p>' +
+                                '<p class="......">班级：' + ress.data[j].OrganName + '</p>' +
+                            '</a>' +
+                        '</li>';
+                  $("#" + OrganID + "").append(list);
+              }
+          }
+      })
+    }
+}
+
+4、网上找了很多解决方案，学习了委托,其作用在于
+1）提高性能
+  对于多个相同的操作，如果足一操作，会影响性能
+2）重复事件
+  新添加了元素还要触发之前的事件，而之前事件已经执行完，导致不再触发(我的错误就属于此类)
+  $("...").click(function(){
+    let list='<button class="btn">jq添加节点</button>';
+    $("...").append(list);
+  })
+  $("btn").click(function(){
+      //方法无效
+  })
+  $("父节点").on('click','button',function(){
+    //通过事件委托完成，有效
+  })
+  
+ps:当时很想明白我犯的错误的原理，但网上全是例子，没有详细说明原因，很是苦恼，最后找到一个讲解比较详细还很通俗易懂的帖子，分享给大家：
+https://blog.csdn.net/a_csdner/article/details/76164986
+
+小结：
+$('...').bind('click',function(){
+        //这就是事件不委托，每个按钮有自己的事件
+    })
+$('#btn').delegate('.button','click',function(){
+    //这就是事件委托，
+})
+$('#btn').undelegate('.button','click')//取消绑定
+                                                                                                                                  
